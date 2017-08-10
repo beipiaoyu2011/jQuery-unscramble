@@ -16,3 +16,13 @@
   - [first()](https://github.com/huainanhai/jQuery-unscramble/blob/master/markdown/first.md)
 
     [(click this for first example)](https://github.com/huainanhai/jQuery-unscramble/blob/master/public/js/first.js)
+
+  - [last()](https://github.com/huainanhai/jQuery-unscramble/blob/master/markdown/last.md)
+
+    [(click this for last example)](https://github.com/huainanhai/jQuery-unscramble/blob/master/public/js/last.js)
+
+2、工具
+
+  - [$.merge(first, second)](https://github.com/huainanhai/jQuery-unscramble/blob/master/markdown/merge.md)
+
+    [(click this for $.merge example)](https://github.com/huainanhai/jQuery-unscramble/blob/master/public/js/merge.js)
