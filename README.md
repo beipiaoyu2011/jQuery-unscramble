@@ -26,3 +26,7 @@
   - [$.merge(first, second)](https://github.com/huainanhai/jQuery-unscramble/blob/master/markdown/merge.md)
 
     [(click this for $.merge example)](https://github.com/huainanhai/jQuery-unscramble/blob/master/public/js/merge.js)
+
+  - [$.grep(array, callback, [invert])](https://github.com/huainanhai/jQuery-unscramble/blob/master/markdown/grep.md)
+
+    [(click this for $.merge example)](https://github.com/huainanhai/jQuery-unscramble/blob/master/public/js/grep.js)
