@@ -9,6 +9,10 @@
 
     [(click this for hasClass example)](https://github.com/huainanhai/jQuery-unscramble/blob/master/public/js/hasClass.js)
 
-- [eq(index | -index)](https://github.com/huainanhai/jQuery-unscramble/blob/master/markdown/eq.md)
+  - [eq(index | -index)](https://github.com/huainanhai/jQuery-unscramble/blob/master/markdown/eq.md)
 
     [(click this for eq example)](https://github.com/huainanhai/jQuery-unscramble/blob/master/public/js/eq.js)
+
+  - [first()](https://github.com/huainanhai/jQuery-unscramble/blob/master/markdown/first.md)
+
+    [(click this for first example)](https://github.com/huainanhai/jQuery-unscramble/blob/master/public/js/first.js)
