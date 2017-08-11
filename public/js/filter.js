@@ -6,10 +6,16 @@ console.log($('p').filter(function () {
 }));
 
 // fr模拟 filter
-// $.fn.fr = function (selector) {  
-//     return this.pushStack(winnow(this, selector, true), 'filter', selector);
-// };
-// function winnow(elements, qualifer, keep) {
-    
-// }
-// console.log($('p').fr('.selected'));
+$.fn.fr = function (selector) {  
+    return this.pushStack(winnow(this, selector, true), 'filter', selector);
+};
+function winnow(elements, qualifer, keep) {
+    if($.isFunction(qualifer)){
+        return $.grep(elements, function (elem, i) {  
+            debugger
+        });
+    }
+}
+console.log($('p').fr(function () {  
+    return $('ol', this).length == 0;
+}));
