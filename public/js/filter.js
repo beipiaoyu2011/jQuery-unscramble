@@ -12,7 +12,8 @@ $.fn.fr = function (selector) {
 function winnow(elements, qualifer, keep) {
     if($.isFunction(qualifer)){
         return $.grep(elements, function (elem, i) {  
-            debugger
+            var retVal = !!qualifer.call(elem, i, elem);
+            return retVal === keep;
         });
     }
 }
