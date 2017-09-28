@@ -35,14 +35,6 @@
         // 节省查找内存地址时间，提高效率
         class2type = {},
 
-        // [[Class]] -> type pairs
-        // 储存了常见类型的 typeof 的哈希表
-        // Boolean Number String Function Array Date RegExp Object Error
-        // 其次，这里定义了一个空对象 {} ，如果下文行文需要调用对象的 toString 和 hasOwnProperty 方法
-        // 将会调用 core_toString 和 core_hasOwn ，这两个变量事先存储好了这两个方法的入口
-        // 节省查找内存地址时间，提高效率
-        class2type = {},
-
         // 定义当前版本
         // 其次，这里定义了一个字符串对象 ，如果下文行文需要调用字符串对象的 trim 方法
         // 将会调用 core_trim ，这个变量事先存储好了 String.trim 方法的入口
@@ -552,6 +544,516 @@
         // 也就是如果不传需要覆盖的源，调用 $.extend 其实是增加 jQuery 的静态方法
         return target;
     };
+
+    // 一些工具函数，区分 jQuery.extend(object) 和 jQuery.fn.extend(object) 区别
+    // jQuery.extend(object) 为扩展 jQuery 类本身，为类添加新的方法。
+    // jQuery.fn.extend(object) 给 jQuery 对象添加方法
+    jQuery.extend({
+        // Unique for each copy of jQuery on the page
+        // Non-digits removed to match rinlinejQuery
+        // 产生jQuery随机数 类似于： "jQuery044958585570566356"
+        expando: 'jQuery' + (core_version + Math.random()).replace(/\D/g, ''),
+
+        // noConflict() 方法让出变量 $ 的 jQuery 控制权，这样其他脚本就可以使用它了
+        // 通过全名替代简写的方式来使用 jQuery
+        // deep -- 布尔值。指示是否允许彻底将 jQuery 变量还原(移交 $ 引用的同时是否移交 jQuery 对象本身)
+        // 让出 jQuery $ 的控制权不代表不能在 jQuery 使用 $ ，方法如下 （）
+        //
+        //	var query = jQuery.noConflict(true);
+        //
+        // (function($) {
+        //
+        //     // 插件或其他形式的代码，也可以将参数设为 jQuery
+        //  })(query);
+        //
+        //  ... 其他用 $ 作为别名的库的代码
+        //
+        noConflict: function (deep) {
+            // 判断全局 $ 变量是否等于 jQuery 变量
+            // 如果等于，则重新还原全局变量 $ 为 jQuery 运行之前的变量（存储在内部变量 _$ 中）
+            if (window.$ === jQuery) {
+                // 此时 jQuery 别名 $ 失效
+                window.$ = _$;
+            }
+            // 当开启深度冲突处理并且全局变量 jQuery 等于内部 jQuery，则把全局 jQuery 还原成之前的状况
+            if (deep && window.jQuery === jQuery) {
+                // 如果 deep 为 true，此时 jQuery 失效
+                window.jQuery = _jQuery;
+            }
+
+            // 这里返回的是 jQuery 库内部的 jQuery 构造函数（new jQuery.fn.init()）
+            // 像使用 $ 一样尽情使用它吧
+            return jQuery;
+        },
+
+        // Is the DOM ready to be used? Set to true once it occurs.
+        // DOM ready 是否已经完成
+        isReady: false,
+
+        // A counter to track how many items to wait for before
+        // the ready event fires. See #6781
+        // 控制有多少个 holdReady 事件需要在 Dom ready 之前执行
+        readyWait: 1,
+
+        // Hold (or release) the ready event
+        // 方法允许调用者延迟 jQuery 的 ready 事件
+        // example. 延迟就绪事件，直到已加载的插件。
+        //
+        // $.holdReady(true);
+        // $.getScript("myplugin.js", function() {
+        //   $.holdReady(false);
+        // });
+        //
+        holdReady: function (hold) {
+            if (hold) {
+                jQuery.readyWait++;
+            } else {
+                jQuery.ready(true);
+            }
+        },
+
+        // Handle when the DOM is ready
+
+        ready: function (wait) {
+            // Abort if there are pending holds or we're already ready
+            // 如果需要等待，holdReady()的时候，把hold住的次数减1，如果还没到达0，说明还需要继续hold住，return掉
+            // 如果不需要等待，判断是否已经Ready过了，如果已经ready过了，就不需要处理了。异步队列里边的done的回调都会执行了
+            if (wait == true ? --jQuery.readyWait : jQuery.isReady) {
+                return;
+            }
+
+            // Make sure body exists, at least, in case IE gets a little overzealous (ticket #5443).
+            // 确定 body 存在
+            if (!document.body) {
+                // 如果 body 还不存在 ，DOMContentLoaded 未完成，此时
+                // 将 jQuery.ready 放入定时器 setTimeout 中
+                // 不带时间参数的 setTimeout(a) 相当于 setTimeout(a,0)
+                // 但是这里并不是立即触发 jQuery.ready
+                // 由于 javascript 的单线程的异步模式
+                // setTimeout(jQuery.ready) 会等到重绘完成才执行代码，也就是 DOMContentLoaded 之后才执行 jQuery.ready
+                // 所以这里有个小技巧：在 setTimeout 中触发的函数, 一定会在 DOM 准备完毕后触发
+                return setTimeout(jQuery.ready);
+            }
+
+            // Remember that the DOM is ready
+            // 记录 DOM ready 已经完成
+            jQuery.isReady = true;
+
+            // If a normal DOM Ready event fired, decrement, and wait if need be
+            // wait 为 false 表示ready事情未触发过，否则 return
+            if (wait !== true && --jQuery.readyWait > 0) {
+                return;
+            }
+            // If there are functions bound, to execute
+            // 调用异步队列，然后派发成功事件出去（最后使用done接收，把上下文切换成document，默认第一个参数是jQuery。
+            readyList.resolveWith(document, [jQuery]);
+
+            // Trigger any bound ready events
+            // 最后jQuery还可以触发自己的ready事件
+            // 例如：
+            //    $(document).on('ready', fn2);
+            //    $(document).ready(fn1);
+            // 这里的fn1会先执行，自己的ready事件绑定的fn2回调后执行
+            if (jQuery.fn.trigger) {
+                jQuery(document).trigger("ready").off("ready");
+            }
+        },
+        // See test/unit/core.js for details concerning isFunction.
+        // Since version 1.3, DOM methods and functions like alert
+        // aren't supported. They return false on IE (#2968).
+        // 判断传入对象是否为 function
+        isFunction: function (obj) {
+            return jQuery.type(obj) === 'funciton';
+        },
+        // 判断传入对象是否为数组
+        isArray: Array.isArray || function (obj) {
+            return jQuery.type(obj) === 'array';
+        },
+        // 判断传入对象是否为 window 对象
+        isWindow: function (obj) {
+            /* jshint eqeqeq: false */
+            return obj != null && obj == obj.window;
+        },
+        // 确定它的参数是否是一个数字
+        isNumeric: function (obj) {
+            return !isNaN(obj) && isFinite(obj);
+        },
+        // 确定JavaScript 对象的类型
+        // 这个方法的关键之处在于 class2type[core_toString.call(obj)]
+        // 可以使得 typeof obj 为 "object" 类型的得到更进一步的精确判断
+        type: function (obj) {
+            // null
+            if (obj === null) {
+                return String(obj);
+            }
+            // 利用事先存好的 hash 表 class2type 作精准判断
+            return typeof obj === "object" || typeof obj === "function" ?
+                class2type[core_toString.call(obj)] || "object" :
+                typeof obj;
+        },
+        // 测试对象是否是纯粹的对象
+        // 通过 "{}" 或者 "new Object" 创建的
+        isPlainObject: function (obj) {
+            var key;
+            // Must be an Object.
+            // Because of IE, we also have to check the presence of the constructor property.
+            // Make sure that DOM nodes and window objects don't pass through, as well
+            if (!obj || jQuery.type(obj) !== 'object' || obj.nodeType || jQuery.isWindow(obj)) {
+                return falase;
+            }
+
+            try {
+                // Not own constructor property must be Object
+                if (obj.constructor && !core_hasOwn.call(obj, 'constructor') && !core_hasOwn.call(obj.constructor.prototype, 'isPrototypeOf')) {
+                    return false;
+                }
+            } catch (error) {
+                // IE8,9 Will throw exceptions on certain host objects #9897
+                return false;
+            }
+            // Support: IE<9
+            // Handle iteration over inherited properties before own properties.
+            if (jQuery.support.ownLast) {
+                for (key in obj) {
+                    return core_hasOwn.call(obj, key);
+                }
+            }
+
+            // Own properties are enumerated firstly, so to speed up,
+            // if last one is own, then all properties are own.
+            for (key in obj) { }
+
+            return key === undefined || core_hasOwn.call(obj, key);
+        },
+
+        // 检查对象是否为空（不包含任何属性）
+        isEmptyObject: function (obj) {
+            var name;
+            for (name in obj) {//没有键值直接跳出
+                return false;
+            }
+            return true;
+        },
+
+        // 为 JavaScript 的 "error" 事件绑定一个处理函数
+        error: function (msg) {
+            throw new Error(msg);
+        },
+
+        // data: string of html
+        // context (optional): If specified, the fragment will be created in this context, defaults to document
+        // keepScripts (optional): If true, will include scripts passed in the html string
+        // 将字符串解析到一个 DOM 节点的数组中
+        // data -- 用来解析的HTML字符串
+        // context -- DOM元素的上下文，在这个上下文中将创建的HTML片段
+        // keepScripts  -- 一个布尔值，表明是否在传递的HTML字符串中包含脚本
+        parseHTML: function (data, context, keepScripts) {
+            // 传入的 data 不是字符串，返回 null
+            if (!data || typeof data !== 'string') {
+                return null;
+            }
+
+            // 如果没有传上下文参数
+            // function(data,keepScripts)
+            if (typeof context == 'boolean') {
+                keepScripts = context;
+                context = false;
+            }
+
+            //没有上下文 默认document
+            context = context || document;
+
+            // rsingleTag = /^<(\w+)\s*\/?>(?:<\/\1>|)$/;
+            // 上面这个正则匹配的是 纯HTML标签,不带任何属性 ，如 '<html></html>' 或者 '<img/>'
+            // rsingleTag.test('<html></html>') --> true
+            // rsingleTag.test('<img/>') --> true
+            // rsingleTag.test('<div class="foo"></div>') --> false
+            var parsed = rsingleTag.exec(data),
+                scripts = !keepScripts && [];
+
+            // Single tag
+            // 单个标签，如果捕获的 div 相当于
+            // return document.createElement('div');
+            if (parsed) {
+                return [context.createElement(parsed[1])];
+            }
+
+            parsed = jQuery.buildFragment([data], context, scripts);
+            if (scripts) {
+                jQuery(scripts).remove();
+            }
+            return jQuery.merge([], parsed.childNodes);
+        },
+
+        // 解析 JSON 字符串
+        parseJSON: function (data) {
+            // Attempt to parse using the native JSON parser first
+            if (window.JSON && window.JSON.parse) {
+                return window.JSON.parse(data);
+            }
+
+            if (data === null) {
+                return data;
+            }
+
+            if (typeof data === 'string') {
+                // Make sure leading/trailing whitespace is removed (IE can't handle it)
+                data = jQuery.trim(data);
+                if (data) {
+                    // Make sure the incoming data is actual JSON
+                    // Logic borrowed from http://json.org/json2.js
+                    if (rvalidchars.test(data.replace(rvalidescape, "@")
+                        .replace(rvalidtokens, "]")
+                        .replace(rvalidbraces, ""))) {
+                        return (new Function("return " + data))();
+                    }
+                }
+            }
+            jQuery.error("Invalid JSON: " + data);
+        },
+
+        // Cross-browser xml parsing
+        parseXML: function (data) {
+            var xml, tmp;
+            if (!data || typeof data !== "string") {
+                return null;
+            }
+            try {
+                if (window.DOMParser) { // Standard
+                    tmp = new DOMParser();
+                    xml = tmp.parseFromString(data, "text/xml");
+                } else { // IE
+                    xml = new ActiveXObject("Microsoft.XMLDOM");
+                    xml.async = "false";
+                    xml.loadXML(data);
+                }
+            } catch (e) {
+                xml = undefined;
+            }
+            if (!xml || !xml.documentElement || xml.getElementsByTagName("parsererror").length) {
+                jQuery.error("Invalid XML: " + data);
+            }
+            return xml;
+        },
+
+        noop: function () { },
+
+        // Evaluates a script in a global context
+        // Workarounds based on findings by Jim Driscoll
+        // http://weblogs.java.net/blog/driscoll/archive/2009/09/08/eval-javascript-global-context
+        // 一个 eval 的变种（eval()：函数可计算某个字符串，并执行其中的的 JavaScript 代码）
+        // globalEval()函数用于全局性地执行一段JavaScript代码
+        // 该方法跟eval方法相比有一个作用域的范围差异即始终处于全局作用域下面
+        globalEval: function (data) {
+            if (data && jQuery.trim(data)) {
+                // We use execScript on Internet Explorer
+                // We use an anonymous function so that context is window
+                // rather than jQuery in Firefox
+                // 如果 window.execScript 存在，则直接 window.execScript(data)
+                // window.execScript 方法会根据提供的脚本语言执行一段脚本代码
+                // 现在是在IE跟旧版本的Chrome是支持此方法的，新版浏览器没有 window.execScript 这个API
+                (window.execScript || function (data) {
+                    // 这里为何不能直接：eval.call( window, data );
+                    // 在chrome一些旧版本里eval.call( window, data )无效
+                    window["eval"].call(window, data);
+                })(data);
+            }
+        },
+
+        // Convert dashed to camelCase; used by the css and data modules
+        // Microsoft forgot to hump their vendor prefix (#9572)
+        // 驼峰表示法 例如将 font-size 变为 fontSize
+        // 在很多需要兼容 IE 的地方用得上，例如 IE678 获取 CSS 样式的时候，使用
+        // element.currentStyle.getAttribute(camelCase(style)) 传入的参数必须是驼峰表示法
+        camelCase: function (string) {
+            return string.replace(rmsPrefix, "ms-").replace(rdashAlpha, fcamelCase);
+        },
+
+        // 获取 DOM 节点的节点名字或者判断其名字跟传入参数是否匹配
+        nodeName: function (elem, name) {
+            // IE下，DOM节点的nodeName是大写的，例如DIV
+            // 所以统一转成小写再判断
+            // 这里不return elem.nodeName.toLowerCase();
+            // 我认为原因是为了保持浏览器自身的对外的规则，避免所有引用nodeName都要做转换的动作
+            return elem.nodeName && elem.nodeName.toLowerCase() === name.toLowerCase();
+        },
+
+        // args is for internal usage only
+        // 遍历一个数组或者对象
+        // obj 是需要遍历的数组或者对象
+        // callback 是处理数组/对象的每个元素的回调函数，它的返回值实际会中断循环的过程
+        // args 是额外的参数数组
+        each: function (obj, callback, args) {
+            var value,
+                i = 0,
+                length = obj.length,
+                isArray = isArrayLike(obj);
+            // 传了第三个参数
+            if (args) {
+                if (isArray) {
+                    for (; i < length; i++) {
+                        // 相当于:
+                        // args = [arg1, arg2, arg3];
+                        // callback(args1, args2, args3)。然后callback里边的this指向了obj[i]
+                        value = callback.apply(obj[i], args);
+                        // 注意到，当callback函数返回值会false的时候，注意是全等！循环结束
+                        if (value === false) {
+                            break;
+                        }
+                    }
+                } else {
+                    for (i in obj) {
+                        value = callback.apply(obj[i], args);
+                        if (value === false) {
+                            break;
+                        }
+                    }
+                }
+            } else {
+                // 数组
+                // 其实这里代码有点赘余，如果考虑代码的简洁性牺牲一点点性能
+                // 在处理数组的情况下，也是可以用 for(i in obj)的
+                if (isArray) {
+                    for (; i < length; i++) {
+                        // 相当于:
+                        // args = [arg1, arg2, arg3];
+                        // callback(args1, args2, args3)。然后callback里边的this指向了obj[i]
+                        value = callback.apply(obj[i], i, obj[i]);
+                        // 注意到，当callback函数返回值会false的时候，注意是全等！循环结束
+                        if (value === false) {
+                            break;
+                        }
+                    }
+                } else {
+                    for (i in obj) {
+                        value = callback.apply(obj[i], i, obj[i]);
+                        if (value === false) {
+                            break;
+                        }
+                    }
+                }
+            }
+        },
+        // Use native String.trim function wherever possible
+        // 去除字符串两端空格
+        // core_trim = core_version.trim,
+        // rtrim = /^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g
+        // \uFEFF 是 utf8 的字节序标记，详见：字节顺序标记 https://zh.wikipedia.org/wiki/%E4%BD%8D%E5%85%83%E7%B5%84%E9%A0%86%E5%BA%8F%E8%A8%98%E8%99%9F
+        // \xA0 是全角空格
+        trim: core_trim && !core_trim.call("\uFEFF\xA0") ?
+            // 如果已经支持原生的 String 的 trim 方法
+            // 相当于等于下面这个方法 $.trim = function( text ) {...}
+            function (text) {
+                return text == null ?
+                    "" :
+                    core_trim.call(text);
+            } :
+            // Otherwise use our own trimming functionality
+            // 不支持原生的 String 的 trim 方法
+            function (text) {
+                return text == null ?
+                    "" :
+                    // text + "" 强制类型转换 ，转换为 String 类型
+                    (text + "").replace(rtrim, "");
+            },
+        // results is for internal usage only
+        // 将类数组对象转换为数组对象
+        // 此方法为内部方法
+        makeArray: function (arr, results) {
+            var ret = results || [];
+            if (arr != null) {
+                // 如果 arr 是一个类数组对象，调用 merge 合到返回值
+                if (isArrayLike(Object(arr))) {
+                    jQuery.merge(ret, typeof arr == 'string' ? [arr] : arr);
+                } else {
+                    // 如果不是数组，则将其放到返回数组末尾
+                    // 等同于 ret.push(arr);
+                    core_push.call(ret, arr);
+                }
+            }
+            return ret;
+        },
+
+        // 在数组中查找指定值并返回它的索引（如果没有找到，则返回-1）
+        // elem 规定需检索的值。
+        // arr 数组
+        // i 可选的整数参数。规定在数组中开始检索的位置。它的合法取值是 0 到 arr.length - 1。如省略该参数，则将从数组首元素开始检索。
+        inArray: function (elem, arr, i) {
+            var len;
+            if (arr) {
+                //如果支持原生的 indexOf 方法，直接调用
+                // core_indexOf.call( arr, elem, i ) 相当于：
+                // Array.indexOf.call(arr,elem, i)
+                if (core_indexOf) {
+                    return core_indexOf.call(arr, elem, i);
+                }
+
+                len = arr.length;
+                i = i ? i < 0 ? Math.max(0, len + i) : i : 0;
+
+                for (; i < len; i++) {
+                    // Skip accessing in sparse arrays
+                    // jQuery这里的(i in arr)判断是为了跳过稀疏数组中的元素
+                    // 例如 var arr = []; arr[1] = 1;
+                    // 此时 arr == [undefined, 1]
+                    // 结果是 => (0 in arr == false) (1 in arr == true)
+                    // 测试了一下 $.inArray(undefined, arr, 0)是返回 -1 的
+                    for (i in arr && arr[i] == elem) {
+                        return i;
+                    }
+                }
+            }
+            return -1;
+        },
+
+        // merge的两个参数必须为数组，作用就是修改第一个数组，使得它末尾加上第二个数组
+        merge: function (first, second) {
+            var l = second.length,
+                i = first.length,
+                j = 0;
+            if (typeof l === 'number') {
+                for (; j < l; j++) {
+                    first[i++] = second[j];
+                }
+            } else {
+                //{0: "a", 1: "b"}
+                while (second[j] != undefined) {
+                    first[i++] = second[j++];
+                }
+            }
+            first.length = i;
+            return first;
+        },
+
+        // 查找满足过滤函数的数组元素,原始数组不受影响
+        // elems 是传入的数组，callback 是过滤器，inv 为 true 则返回那些被过滤掉的值
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    });
+
+
+
+
 
 
 })(window);
